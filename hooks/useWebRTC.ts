@@ -13,6 +13,7 @@ interface useWebRTCOptions {
   roomId: string;
   userId: string;
   userName: string;
+  onUserJoined?: (name: string) => void;
 }
 
 const ICE_SERVERS = {
@@ -25,7 +26,7 @@ const ICE_SERVERS = {
   ],
 };
 
-export const useWebRTC = ({ roomId, userId, userName }: useWebRTCOptions) => {
+export const useWebRTC = ({ roomId, userId, userName, onUserJoined }: useWebRTCOptions) => {
   const socket = getSocket();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, { stream: MediaStream; userName: string }>>({});
@@ -288,6 +289,8 @@ export const useWebRTC = ({ roomId, userId, userName }: useWebRTCOptions) => {
         }
         return prev;
       });
+      // Fire the callback so the room page can push a notification
+      if (onUserJoined) onUserJoined(newParticipant.name);
     });
 
     // Handle SDP offer from inbound peer connection

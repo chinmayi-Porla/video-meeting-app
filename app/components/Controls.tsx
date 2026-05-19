@@ -12,7 +12,6 @@ import {
   BiShow,
   BiDisc,
   BiPen,
-  BiHand
 } from 'react-icons/bi';
 
 interface ControlsProps {

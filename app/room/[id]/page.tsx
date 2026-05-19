@@ -45,6 +45,20 @@ export default function RoomPage() {
   // User ID generated once per tab session
   const [userId] = useState(() => Math.random().toString(36).substr(2, 9));
 
+  // Push join events to localStorage so the dashboard bell picks them up
+  const handleUserJoined = (joinedName: string) => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('dashboard_notifications') || '[]');
+      const newNotif = {
+        id: Date.now(),
+        text: `${joinedName} joined the meeting`,
+        time: 'Just now',
+        unread: true,
+      };
+      localStorage.setItem('dashboard_notifications', JSON.stringify([newNotif, ...existing].slice(0, 20)));
+    } catch (e) { /* ignore */ }
+  };
+
   // Initialize WebRTC custom hook
   const {
     localStream,
@@ -62,6 +76,7 @@ export default function RoomPage() {
     roomId,
     userId,
     userName,
+    onUserJoined: handleUserJoined,
   });
 
   // Initialize Screen Recording custom hook

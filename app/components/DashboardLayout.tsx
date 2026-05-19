@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { 
   Video, Plus, History, LogOut, LayoutDashboard, Calendar, 
@@ -48,15 +48,24 @@ export default function DashboardLayout({
       const saved = localStorage.getItem('scheduled_meetings');
       if (saved) setScheduledMeetings(JSON.parse(saved));
     } catch (e) { /* ignore */ }
+
+    // Load real join notifications written by the room page
+    try {
+      const savedNotifs = JSON.parse(localStorage.getItem('dashboard_notifications') || '[]');
+      if (savedNotifs.length > 0) {
+        setNotifications(savedNotifs);
+      } else {
+        // Default placeholder if no real events yet
+        setNotifications([
+          { id: 3, text: 'Your previous meeting recording is ready', time: '2 hours ago', unread: false }
+        ]);
+      }
+    } catch (e) { /* ignore */ }
   }, []);
 
   // Notifications & Preferences State
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: 'Someone joined room xyz', time: 'Just now', unread: true },
-    { id: 2, text: 'You scheduled a new meeting', time: '10 mins ago', unread: true },
-    { id: 3, text: 'Your previous meeting recording is ready', time: '2 hours ago', unread: false }
-  ]);
+  const [notifications, setNotifications] = useState<any[]>([]);  
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(true);
 
@@ -66,7 +75,9 @@ export default function DashboardLayout({
   const [isSaving, setIsSaving] = useState(false);
 
   const markAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, unread: false })));
+    const updated = notifications.map(n => ({ ...n, unread: false }));
+    setNotifications(updated);
+    try { localStorage.setItem('dashboard_notifications', JSON.stringify(updated)); } catch (e) { /* ignore */ }
   };
 
   const handleScheduleMeeting = (e: React.FormEvent) => {
@@ -144,12 +155,12 @@ export default function DashboardLayout({
     }
   };
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
   };
