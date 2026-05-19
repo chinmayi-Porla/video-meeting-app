@@ -26,11 +26,23 @@ export default function VideoPlayer({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Bind video stream to the video element
+  // Bind video stream to the video element — robust version with play() retry
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+    const video = videoRef.current;
+    if (!video || !stream) return;
+
+    // Only reassign if the stream actually changed
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
     }
+
+    // Ensure autoplay fires even if the element was already mounted
+    video.play().catch((err) => {
+      // DOMException: play() interrupted — safe to ignore (browser handles it)
+      if (err.name !== 'AbortError') {
+        console.warn('[VideoPlayer] play() failed:', err);
+      }
+    });
   }, [stream]);
 
   // Voice Activity Detection (VAD) using Web Audio API
