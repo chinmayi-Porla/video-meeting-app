@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local database (contains hashed passwords - NEVER commit this)
+db.json
+
+# Server node_modules
+server/node_modules

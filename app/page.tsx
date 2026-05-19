@@ -1,65 +1,138 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { dbHistory, MeetingHistory } from '../lib/supabase';
+import LandingHero from './components/LandingHero';
+import DashboardLayout from './components/DashboardLayout';
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+  const router = useRouter();
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userRole, setUserRole] = useState('');
+  const [historyList, setHistoryList] = useState<MeetingHistory[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Hydrate custom lobby settings and call history list
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedName = localStorage.getItem('user_display_name');
+      const storedEmail = localStorage.getItem('user_email');
+      const storedRole = localStorage.getItem('user_role');
+      
+      if (storedName) setUserName(storedName);
+      if (storedEmail) setUserEmail(storedEmail);
+      if (storedRole) setUserRole(storedRole);
+      
+      if (!storedEmail) {
+        // Self-healing mechanism: Since the cookie is httpOnly, we MUST call the backend
+        // to clear it, then redirect so the middleware no longer blocks /login or /signup.
+        fetch('/api/auth/logout', { method: 'POST' })
+          .finally(() => {
+            // After the cookie is cleared server-side, reload so middleware lets us through.
+            setIsLoaded(true);
+          });
+        return; // Don't proceed with loading history – we are unauthenticated
+      }
+      
+      dbHistory.getHistory().then(history => {
+        setHistoryList(history);
+        setIsLoaded(true);
+      });
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      if (res.ok) {
+        localStorage.removeItem('user_display_name');
+        localStorage.removeItem('user_email');
+        setUserName('');
+        setUserEmail('');
+        router.push('/login');
+        router.refresh();
+      }
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
+  };
+
+  // Generate 8-character unique alphanumeric room ID
+  const generateShortRoomId = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  const handleCreateRoom = () => {
+    if (!userName.trim()) {
+      alert('Profile name is invalid. Please log in again.');
+      return;
+    }
+    const newRoomId = generateShortRoomId();
+    dbHistory.addHistory(newRoomId, userName, 1);
+    router.push(`/room/${newRoomId}`);
+  };
+
+  const handleJoinRoom = (e: React.FormEvent, roomIdInput: string) => {
+    e.preventDefault();
+    if (!userName.trim()) {
+      alert('Profile name is invalid. Please log in again.');
+      return;
+    }
+    if (!roomIdInput.trim()) {
+      alert('Please enter a valid Room ID.');
+      return;
+    }
+    
+    let cleanedRoomId = roomIdInput.trim();
+    
+    if (cleanedRoomId.includes('/room/')) {
+      const parts = cleanedRoomId.split('/room/');
+      cleanedRoomId = parts[parts.length - 1].split(/[?#]/)[0];
+    }
+    
+    cleanedRoomId = cleanedRoomId
+      .replace(/^(room\s*id|room|meeting\s*id|meeting)\s*:?\s*/i, '')
+      .replace(/[^a-zA-Z0-9-]/g, '')
+      .trim();
+
+    if (!cleanedRoomId) {
+      alert('Invalid Room ID format.');
+      return;
+    }
+
+    dbHistory.addHistory(cleanedRoomId, userName, 1);
+    router.push(`/room/${cleanedRoomId}`);
+  };
+
+  // Don't flash login if still checking storage
+  if (!isLoaded) {
+    return <div className="min-h-screen bg-[#0f0f13] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    </div>;
+  }
+
+  // If logged in, show Professional Dashboard
+  if (userEmail) {
+    return (
+      <DashboardLayout 
+        userName={userName}
+        userEmail={userEmail}
+        userRole={userRole}
+        historyList={historyList}
+        onLogout={handleLogout}
+        onCreateRoom={handleCreateRoom}
+        onJoinRoom={handleJoinRoom}
+      />
+    );
+  }
+
+  // If not logged in, show beautiful landing page
+  return <LandingHero />;
 }
